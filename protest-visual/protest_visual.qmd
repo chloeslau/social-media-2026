@@ -1,0 +1,114 @@
+---
+title: "Poster: Protest Activity Comparison"
+execute:
+  echo: true
+  output: true
+format: 
+  markdown:
+    embed-resources: true
+    toc: true
+    toc-depth: 4
+  html: 
+    embed-resources: true
+    toc: true 
+    toc_depth: 4
+editor: visual
+---
+
+# 1. Load packages and read data
+
+```{r}
+library(tidyverse)
+library(stm)
+library(tidymodels)
+library(tidytext)
+library(quanteda)
+library(dplyr)
+
+path_data <- "data"
+
+options(mc.cores = 8)
+```
+
+```{r}
+df_protest <- read_csv(here::here(path_data, "WI_protest_filteredsubset.csv"), show_col_types = FALSE)
+```
+
+```{r}
+skimr::skim(df_protest)
+```
+
+```{r}
+df_all <- read_csv(here::here(path_data, "df_topics.csv"), show_col_types = FALSE)
+```
+
+#2. Data cleaning
+Create cutoff for protest dates
+```{r}
+df_all <- df_all %>%
+  filter(as_date(date) >= as_date("2017-01-21") & # cut-off from protest
+         as_date(date) <= as_date("2024-10-01"))
+```
+
+factor variables
+```{r}
+df_all <- df_all |>
+  mutate(topics_name = fct(topics_name))
+```
+
+filter protest events for just abortion-related events
+```{r}
+df_protest1 <- df_protest |> filter(grepl('reproductive rights', issues))
+```
+
+```{r}
+df_a <- df_all |>
+  filter(topics_name == "reproductive rights" | topics_name == "legislative; civil rights")
+```
+
+```{r}
+df_protest1 <- df_protest1 |>
+  filter(as_date(date) >= as_date("2022-01-01") & as_date(date) <= as_date("2023-1-31"))
+
+df_a <- df_a |>
+  filter(as_date(date) >= as_date("2022-01-01") & as_date(date) <= as_date("2023-1-31"))
+```
+
+```{r}
+abort_dates <- as_datetime(c("2022-05-04", "2022-06-24", "2022-10-02", "2022-11-08"))
+```
+
+#3. Graphing comparison
+```{r}
+abort_plot <- ggplot() +
+  geom_freqpoly(data = df_a, # linewidth = 1, 
+                aes(x = as_datetime(date), color = topics_name)) +
+  geom_freqpoly(data = df_protest1, 
+                linetype = "longdash", 
+                aes(x = as_datetime(date), size = "abortion-related protests")) +
+# vertical lines
+  geom_vline(xintercept = abort_dates, 
+             # linetype = "dashed", 
+             color = "#8b0037") +
+  annotate("text", x=as_datetime("2022-04-25"), y=54, 
+           label="SCOTUS draft leak", size = 3, angle=90) +
+  annotate("text", x=as_datetime("2022-06-15"), y=52, 
+           label="Roe v. Wade overturned", size = 3, angle=90) +
+  annotate("text", x=as_datetime("2022-09-24"), y=56, 
+           label="Life Chain Day", size = 3, angle=90) +
+  annotate("text", x=as_datetime("2022-10-30"), y=55, 
+           label="Midterm Elections", size = 3, angle=90) +
+# labels  
+  labs(x = "Date", y = "Number of Posts", 
+       title = "Comparison of Abortion-Related Protests and Posts",
+       color = "Posts by Topic") +
+  scale_y_continuous("Number of Posts",
+    sec.axis = sec_axis(~ . * 1, name = "Number of Protests (Dashed)")) +
+  scale_color_manual(values = c("#C5050C", "#6b9999")) +
+    #PROTESTS
+  scale_size_manual(
+    "Protests", values=rep(1,4),
+    guide=guide_legend(override.aes = list(colour="black")))
+
+abort_plot + theme_classic()
+```
